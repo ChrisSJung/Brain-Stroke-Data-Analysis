@@ -1,0 +1,544 @@
+---
+title: "STA303 Final Project"
+author: "Christopher Jung"
+date: '2024-4-06-2:34pm'
+output: pdf_document
+---
+
+
+Introduction
+
+There is a concerning increase of brain stroke over the years. Due to the unawareness of the significance of other symptoms to the disease, the relationship is often overlooked. Diabetes, BMI, and heart disease are significant factors that can cause a stroke. High blood pressure and high cholesterol are also some underlying factors. The goal of the analysis is to study the significance of these 5 variables to brain stroke. In past literature, it is stated that Diabetes, BMI, and heart disease have positive relationship with stroke and aligns with this study. Existing literature also hints heart disease and high cholesterol may be confounding variables which aligns with this analysis.
+
+
+
+# Methods
+
+## Study Population
+The original data used for this study comes from The Behavioral Risk Factor Surveillance System (BRFSS) survey from 2015 that is conducted annually to study health-related risk factors among Americans. The cleaned version of the data for this study contains 253680 observations, each observation representing an individual.
+
+
+
+
+
+# Results
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, eval=TRUE, echo = FALSE, include = FALSE}
+library(car)
+library(knitr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(glmnet)
+library(rms)
+library(pROC)
+library(ggpubr)
+```
+
+```{r, echo=FALSE, include=FALSE}
+health_data <- read.csv("diabetes_012_health_indicators_BRFSS2015.csv")
+```
+Inputting the dataset
+
+```{r}
+#number of rows ie observations
+nrow(health_data)
+```
+
+```{r}
+#indicates no missing values
+sum(is.na(health_data))
+```
+```{r}
+head(health_data)
+```
+
+
+## change the MentHlth and PhysHlth to binary factors variables 
+```{r, echo=FALSE, include=FALSE}
+health_data$MentHlth <- cut(health_data$MentHlth,2,labels = 0:1)
+health_data$PhysHlth <- cut(health_data$PhysHlth,2,labels = 0:1)
+```
+Changing the data from a 30 level categorical variable to binary categorical variable. Since the number increased from 0 to 30 in ordinal order, 0 to 15 was set to 0, and 16 to 30 was set to 1.
+
+```{r, echo=FALSE, include=FALSE}
+#changing categorical variable for part1 that is in numerical type to categorical
+health_data$Stroke = factor(health_data$Stroke)
+health_data$Diabetes_012 = factor(health_data$Diabetes_012)
+health_data$HeartDiseaseorAttack = factor(health_data$HeartDiseaseorAttack)
+health_data$HighBP = factor(health_data$HighBP)
+health_data$HighChol = factor(health_data$HighChol)
+health_data$CholCheck  = factor(health_data$CholCheck)
+health_data$Smoker = factor(health_data$Smoker)
+health_data$PhysActivity = factor(health_data$PhysActivity)
+health_data$Fruits = factor(health_data$Fruits)
+health_data$Veggies = factor(health_data$Veggies)
+health_data$HvyAlcoholConsump = factor(health_data$HvyAlcoholConsump)
+health_data$AnyHealthcare = factor(health_data$AnyHealthcare)
+health_data$NoDocbcCost = factor(health_data$NoDocbcCost)
+health_data$GenHlth = factor(health_data$GenHlth)
+health_data$DiffWalk = factor(health_data$DiffWalk)
+health_data$Sex = factor(health_data$Sex)
+health_data$Age = factor(health_data$Age)
+health_data$Education = factor(health_data$Education)
+health_data$Income = factor(health_data$Income)
+```
+
+The type of value was set as numerical which it should be factor variables since they are categorical variables so the variable type was changed to factors.
+
+```{r}
+glimpse(health_data)
+```
+
+
+
+
+## EDA
+
+The response variable: stroke
+
+The risk factors:
+- diabetes
+- bmi
+- heart disease
+
+The possible confounders:
+- high cholesterol
+- high blood pressure
+
+```{r}
+
+df <- data.frame(Stroke = c("No Stroke", "Stroke"),
+                 Probability = c(nrow(health_data[health_data$Stroke==0,])/nrow(health_data), nrow(health_data[health_data$Stroke==1,])/nrow(health_data)))
+
+knitr::kable(df, caption = "Stroke Probability")                
+                 
+```
+
+Getting the probability table for stroke vs no stroke
+
+
+```{r}
+#probability table for diabetes
+no_dia=health_data[health_data$Diabetes_012==0,]
+pre_dia = health_data[health_data$Diabetes_012==1,]
+dia = health_data[health_data$Diabetes_012==2,]
+
+df <- data.frame(Stroke = c("No Stroke with no diabetes", "Stroke with no diabetes", "No Stroke with pre-diabetes", "Stroke with pre-diabetes", "No Stroke with diabetes", "Stroke with diabetes"),
+                 Probability = c(nrow(no_dia[no_dia$Stroke == 0,])/ nrow(no_dia), nrow(no_dia[no_dia$Stroke == 1,])/ nrow(no_dia), nrow(pre_dia[pre_dia$Stroke == 0,])/ nrow(pre_dia), nrow(pre_dia[pre_dia$Stroke == 1,])/ nrow(pre_dia), nrow(dia[dia$Stroke == 0,])/ nrow(dia), nrow(dia[dia$Stroke == 1,])/ nrow(dia)))
+
+knitr::kable(df, caption = "Stroke Probability for Diabetes")                
+                 
+```
+
+Getting the probability table for stroke vs no stroke for diabetes
+
+
+```{r}
+#probability table for heart disease
+no_heart_disease =health_data[health_data$HeartDiseaseorAttack==0,]
+heart_disease = health_data[health_data$HeartDiseaseorAttack==1,]
+
+
+df <- data.frame(Stroke = c("No Stroke with no heart disease/attack", "Stroke with no heart disease/attack", "No Stroke with heart disease/attack", "Stroke with heart disease/attack"),
+                 Probability = c(nrow(no_heart_disease[no_heart_disease$Stroke == 0,])/ nrow(no_heart_disease), nrow(no_heart_disease[no_heart_disease$Stroke == 1,])/ nrow(no_heart_disease), nrow(heart_disease[heart_disease$Stroke == 0,])/ nrow(heart_disease), nrow(heart_disease[heart_disease$Stroke == 1,])/ nrow(heart_disease)))
+
+knitr::kable(df, caption = "Stroke Probability for Heart Disease")                 
+                 
+```
+
+Getting the probability table for stroke vs no stroke for heart disease/attack
+
+
+```{r}
+#probability table for high blood pressure
+no_highBP =health_data[health_data$HighBP==0,]
+highBP = health_data[health_data$HighBP==1,]
+
+
+df <- data.frame(Stroke = c("No Stroke with no high blood pressure", "Stroke with no high blood pressure", "No Stroke with high blood pressure", "Stroke with high blood pressure"),
+                 Probability = c(nrow(no_highBP[no_highBP$Stroke == 0,])/ nrow(no_highBP), nrow(no_highBP[no_highBP$Stroke == 1,])/ nrow(no_highBP), nrow(highBP[highBP$Stroke == 0,])/ nrow(highBP), nrow(highBP[highBP$Stroke == 1,])/ nrow(highBP)))
+
+knitr::kable(df, caption = "Stroke Probability for Blood Pressure")                 
+                 
+```
+
+Getting the probability table for stroke vs no stroke for high blood pressure
+
+```{r}
+#probability table for high cholesterol
+no_highChol = health_data[health_data$HighChol==0,]
+highChol = health_data[health_data$HighChol==1,]
+
+
+df <- data.frame(Stroke = c("No Stroke with no high cholesterol", "Stroke with no high cholesterol", "No Stroke with high cholesterol", "Stroke with high cholesterol"),
+                 Probability = c(nrow(no_highChol[no_highChol$Stroke == 0,])/ nrow(no_highChol), nrow(no_highChol[no_highChol$Stroke == 1,])/ nrow(no_highChol), nrow(highChol[highChol$Stroke == 0,])/ nrow(highChol), nrow(highChol[highChol$Stroke == 1,])/ nrow(highChol)))
+
+knitr::kable(df, caption = "Stroke Probability for Cholesterol")               
+                 
+```
+Getting the probability table for stroke vs no stroke for high cholesterol
+
+
+
+# Numerical Summaries of the important variables in the research question
+```{r}
+plot_diabetes <- ggplot(health_data, aes(x = Diabetes_012)) +
+  geom_bar(aes(fill = Stroke), position = "dodge") +
+  labs(title = "Diabetes Status", x="Diabetes Status", y="Count") +
+  scale_x_discrete(labels=c("No Diabetes", "Pre-diabetes", "Diabetes")) +
+  scale_fill_discrete(labels=c("No Stroke", "Stroke"))
+
+plot_bmi <- ggplot(health_data, aes(x=Stroke, y=BMI, fill = Stroke)) +
+  geom_boxplot() +
+  labs(title = "Stroke vs BMI", x="Stroke", y="BMI") +
+  scale_x_discrete(labels=c("No Stroke", "Stroke")) +
+  scale_fill_discrete(labels=c("No Stroke", "Stroke"))
+
+plot_heart <- ggplot(health_data, aes(x = HeartDiseaseorAttack)) +
+  geom_bar(aes(fill = Stroke), position = "dodge") +
+  labs(title = "Heart Disease or Attack", x="Heart Disease or Attack", y="Count") +
+  scale_x_discrete(labels=c("No High Dis./Att.", "Heart Dis./Att.")) +
+  scale_fill_discrete(labels=c("No Stroke", "Stroke"))
+
+plot_bp <- ggplot(health_data, aes(x = HighBP)) +
+  geom_bar(aes(fill = Stroke), position = "dodge") +
+  labs(title = "Blood pressure", x="Blood Pressure", y="Count") +
+  scale_x_discrete(labels=c("No High BP", "High BP")) +
+  scale_fill_discrete(labels=c("No Stroke", "Stroke")) +
+  scale_y_continuous(breaks=seq(0,200000, 30000))
+
+
+plot_chol <- ggplot(health_data, aes(x = HighChol)) +
+  geom_bar(aes(fill = Stroke), position = "dodge") +
+  labs(title = "Cholesterol", x="Cholesterol", y="Count") +
+  scale_x_discrete(labels=c("No High Chol.", "High Chol.")) +
+  scale_fill_discrete(labels=c("No Stroke", "Stroke")) +
+  scale_y_continuous(breaks=seq(0,200000, 30000))
+
+
+figure_2 <- ggarrange(plot_diabetes, plot_bmi, plot_heart, plot_bp, plot_chol, 
+                    labels = c("A", "B", "C", "D", "E"),
+                    ncol = 2, nrow = 3, common.legend = TRUE)
+
+annotate_figure(figure_2, top = text_grob("Figure 2: No Stroke Vs. Stroke for Measures of Interests", size = 12), bottom = text_grob("Note: This figure displays plots that show No Stroke vs Stroke for each category within different measures of interests", size = 10))
+```
+
+
+So about 4 percent of people have stroke in this dataset which is much lower than what we expect.
+
+It shows that people with diabetes have the highest proportion of Stroke.
+
+The BMI for the Stroke and Non-Stroke groups are similar, where Stroke group is slightly higher. This aligns with the second literature.
+
+It shows that those with heart disease/attack has a higher proportion of stroke in its group than those without a heart disease/attack.
+
+It shows that people with heart disease/attack have much higher proportion of stroke in its group than those without
+
+It shows that people with high blood pressure (hypertension) have much higher proportion of stroke in its group than those without.
+
+It shows that people with high cholesterol have higher proportion of stroke by in its group than those without.
+
+
+
+## Construct Full model
+
+
+```{r}
+logit.mod1 <- glm(Stroke ~ Diabetes_012 + HighBP + HighChol + CholCheck + BMI + Smoker +
+                    HeartDiseaseorAttack + PhysActivity + Fruits + Veggies + HvyAlcoholConsump +
+                    AnyHealthcare + NoDocbcCost + GenHlth + MentHlth + PhysHlth + DiffWalk + Sex +
+                    Age + Education + Income, family = binomial(link = logit), data = health_data)
+
+summary(logit.mod1)
+```
+Full model using logistic glm was fit. The canonical link was logit.
+
+```{r}
+df <- data.frame(Variables = c("Diabetes", "BMI", "Heart Disease or Attack", "High Blood Pressure", "High Cholesterol", "Smoking", "Age 70 to 74", "Age 75 to 79", "Age 80 or older"), OddsRatio = c(exp(0.178948), exp(-0.018930), exp(0.962350), exp(0.496064), exp(0.202319), exp(0.159064), exp(1.896958), exp(2.020597), exp(2.122161)), PValue = c("< 2e-16", "< 2e-16", "< 2e-16", "< 2e-16", "< 2e-16","1.16e-12", "< 2e-16", "< 2e-16", "< 2e-16"))
+
+knitr::kable(df, caption = "Table 1: Partial Data Summary of the Original Model")  
+```
+
+
+## Variable Selection
+
+### Forward Stepwise selectin using AIC
+
+```{r, eval=TRUE, echo = T}
+## Forward Stepwise elimination based on AIC ##
+sel.var.forward.aic <- step(glm(Stroke~1, family = binomial(link = logit), data = health_data), scope = list(upper = logit.mod1), trace = 0, k = 2, direction = "forward")
+select_var_forward_aic<-attr(terms(sel.var.forward.aic), "term.labels")   #gives us what variables are selected
+select_var_forward_aic
+
+logit.forward.aic <- glm(Stroke ~., data = health_data[,which(colnames(health_data) %in% c(select_var_forward_aic, "Stroke"))], family = binomial)
+summary(logit.forward.aic)
+```
+The forward stepwise for AIC is done. 
+
+### Diagnostics and Model Validation for forward selection based on AIC
+```{r}
+#influential points that affect the estimation of all fitted values (Cook's Distance) for AIC
+
+di.aic <-cooks.distance(logit.forward.aic)
+length(which(di.aic > qf(0.5, 44, 253680-43-1)))  #qf(0.5, p+1, n-p-1), where n =253680, p = 43
+```
+
+```{r}
+qf(0.5, 44, 253680-43-1)
+```
+
+```{r}
+plot(di.aic, ylim = c(0,0.01), main = "Cook's Distance for Forward AIC", xlab = "Observation Number", ylab = "Cook's Distance")
+```
+
+```{r}
+## Calibration plot for BIC with lrm from rms package ##
+## Fit the model with lrm from rms package ##
+lrm.forward.aic <- lrm(Stroke ~ ., data = health_data[,which(colnames(health_data) %in% c(select_var_forward_aic, "Stroke"))], x =TRUE, y = TRUE, model= T)
+cross.calib.forward.aic <- calibrate(lrm.forward.aic, method="crossvalidation", B=10) # model calibration B means k like how many parts we divided into
+plot(cross.calib.forward.aic, las=1, xlab = "Predicted Probability")
+```
+
+```{r}
+### Discrimination with ROC curve for forward selection for BIC
+p <- predict(lrm.forward.aic, type = "fitted")
+
+roc_logit <- roc(health_data$Stroke ~ p)
+## The True Positive Rate ##
+TPR <- roc_logit$sensitivities
+## The False Positive Rate ##
+FPR <- 1 - roc_logit$specificities
+
+plot(FPR, TPR, xlim = c(0,1), ylim = c(0,1), type = 'l', lty = 1, lwd = 2,col = 'red')
+abline(a = 0, b = 1, lty = 2, col = 'blue')
+text(0.7,0.4,label = paste("AUC = ", round(auc(roc_logit),2)))
+```
+
+
+
+### Forward Stepwise selectin using BIC
+
+```{r, eval=TRUE, echo = T}
+## Forward Stepwise elimination based on BIC ##
+sel.var.forward.bic <- step(glm(Stroke~1, family = binomial(link = logit), data = health_data), scope = list(upper = logit.mod1), trace = 0, k = log(nrow(health_data)), direction = "forward")
+select_var_forward_bic<-attr(terms(sel.var.forward.bic), "term.labels")   #gives us what variables are selected
+select_var_forward_bic
+
+logit.forward.bic <- glm(Stroke ~., data = health_data[,which(colnames(health_data) %in% c(select_var_forward_bic, "Stroke"))], family = binomial)
+summary(logit.forward.bic)
+```
+
+
+### Diagnostics and Model Validation for forward selection based on BIC
+```{r}
+#influential points that affect the estimation of all fitted values (Cook's Distance) for BIC
+
+di.bic <-cooks.distance(logit.forward.bic)
+length(which(di.bic > qf(0.5, 37, 253680-36-1)))  #qf(0.5, p+1, n-p-1), where n =253680, p = 36
+```
+
+```{r}
+qf(0.5, 47, 253680-46-1)
+```
+
+```{r}
+plot(di.bic, ylim = c(0,0.01), main = "Cook's Distance for Forward BIC", xlab = "Observation Number", ylab = "Cook's Distance")
+```
+
+```{r}
+## Calibration plot for BIC with lrm from rms package ##
+## Fit the model with lrm from rms package ##
+lrm.forward.bic <- lrm(Stroke ~ ., data = health_data[,which(colnames(health_data) %in% c(select_var_forward_bic, "Stroke"))], x =TRUE, y = TRUE, model= T)
+cross.calib.forward.bic <- calibrate(lrm.forward.bic, method="crossvalidation", B=10) # model calibration B means k like how many parts we divided into
+plot(cross.calib.forward.bic, las=1, xlab = "Predicted Probability")
+```
+
+```{r}
+### Discrimination with ROC curve for forward selection for BIC
+p <- predict(lrm.forward.bic, type = "fitted")
+
+roc_logit <- roc(health_data$Stroke ~ p)
+## The True Positive Rate ##
+TPR <- roc_logit$sensitivities
+## The False Positive Rate ##
+FPR <- 1 - roc_logit$specificities
+
+plot(FPR, TPR, xlim = c(0,1), ylim = c(0,1), type = 'l', lty = 1, lwd = 2,col = 'red')
+abline(a = 0, b = 1, lty = 2, col = 'blue')
+text(0.7,0.4,label = paste("AUC = ", round(auc(roc_logit),2)))
+```
+ROC curve for forward Stepwise on BIC
+
+
+## Variable selection based on LASSO
+
+```{r}
+#LASSO variable selection
+fmla =formula(Stroke ~.-Stroke)
+x <- model.matrix(fmla, data=health_data)
+y <- health_data$Stroke
+
+cv.out = cv.glmnet(x, y, family = "binomial", type.measure = "class", nfolds = 25, alpha = 1)
+
+plot(cv.out)
+best.lambda <- cv.out$lambda.min
+best.lambda
+co<-coef(cv.out, s = "lambda.min")
+
+#Selection of the significant features(predictors)
+
+## threshold for variable selection ##
+
+thresh <- 0.00 #what should the threshold be?
+# select variables #
+inds<-which(abs(co) > thresh)
+variables<-row.names(co)[inds]
+sel_var_lasso<-variables[!(variables %in% '(Intercept)')]
+sel_var_lasso
+```
+Lasso selection is ran. It finds the best lambda and compares to the threshold to select the appropriate variables based on coefficients.
+
+
+```{r}
+logit.lasso <- glm(Stroke ~ Diabetes_012 + HighBP + HighChol + BMI + Smoker + HeartDiseaseorAttack + Veggies + NoDocbcCost + GenHlth + MentHlth + PhysHlth + DiffWalk + Age + Income, family = "binomial", data = health_data)
+
+summary(logit.lasso)
+```
+
+Method:
+
+For Lasso selection method, the best lambda that minimizes the missclassification error and maximizing AUC is simulated. Using the best lambda, the coefficients that are satisfied are selected. If the coefficient meets the threshold of 0, the variable associated with the coefficient is selected as a predictor.
+
+
+Result:
+
+Using 25 folds and using minimum lambda as the best lambda in place of lambda with 1 standard.   The best lambda that minimizes the missclassification error and maximizing auc was found. It was compared to the threshold of 0. The predictors Diabetes, High Blood Pressure, High Cholesterol, BMI, Smoking Status, Heart Disease/Attack, Veggies,.. were selected as signficant predictors.
+
+
+### Diagnostics and Model Validation
+
+
+
+```{r}
+#influential points that affect the estimation of all fitted values (Cook's Distance) for LASSO
+
+di.lasso <-cooks.distance(logit.lasso)
+length(which(di.lasso > qf(0.5, 36, 253680-35-1)))  #qf(0.5, p+1, n-p-1), where n =253680, p = 35
+```
+Running cook's distance
+
+
+```{r}
+qf(0.5, 36, 253680-35-1)
+```
+The cooks distance cutoff 
+
+
+
+```{r, eval=TRUE, echo = T}
+
+plot(di.lasso, ylim = c(0,0.01), main = "Cook's Distance", xlab = "Observation Number", ylab = "Cook's Distance")
+
+
+## Calibration plot by LASSO with lrm from rms package ##
+lrm.lasso <- lrm(Stroke ~ Diabetes_012 + HighBP + HighChol + BMI + Smoker + HeartDiseaseorAttack + Veggies + NoDocbcCost + GenHlth + MentHlth + PhysHlth + DiffWalk + Age + Income, data = health_data, x =TRUE, y = TRUE, model= T)
+cross.calib.lasso <- calibrate(lrm.lasso, method="crossvalidation", B=10) # model calibration B means k like how many parts we divided into
+plot(cross.calib.lasso, las=1, xlab = "Predicted Probability", main = "Calibration plot")
+
+
+
+### Discrimination with ROC curve for LASSO
+p <- predict(lrm.lasso, type = "fitted")
+
+roc_logit <- roc(health_data$Stroke ~ p)
+## The True Positive Rate ##
+TPR <- roc_logit$sensitivities
+## The False Positive Rate ##
+FPR <- 1 - roc_logit$specificities
+
+plot(FPR, TPR, xlim = c(0,1), ylim = c(0,1), type = 'l', lty = 1, lwd = 2,col = 'red', main = "ROC curve")
+abline(a = 0, b = 1, lty = 2, col = 'blue')
+text(0.7,0.4,label = paste("AUC = ", round(auc(roc_logit),2)))
+```
+
+
+Since all observations are much below 0.9815463, there are no influential observations that affect the estimation of all fitted values.
+
+These are the model diagnostics and model validation plots for LASSO. It includes cooks distance plot, calibration plot, and ROC curve.
+
+
+
+
+Final Model:
+
+We choose Lasso model as our final model because AUC, mean absolute error and mean squared error are same between the lasso model and the forward selection bic model, and aic model, but LASSO model is a simpler model so it is better.
+
+
+numerical summaries of final model
+
+
+```{r}
+df <- data.frame(Variables = c("Diabetes", "BMI", "Heart Disease or Attack", "High Blood Pressure", "High Cholesterol", "Smoking", "Age 70 to 74", "Age 75 to 79", "Age 80 or older"), OddsRatio = c(exp(0.2674344), exp(-0.0169986), exp(1.0732205), exp(0.5673476), exp(0.2311058), exp(0.1917943), exp(1.9271516), exp(2.0551095), exp(2.1644760)), PValue = c("< 2e-16", "< 2e-16", "< 2e-16", "< 2e-16", "< 2e-16","< 2e-16", "< 2e-16", "< 2e-16", "< 2e-16"))
+
+knitr::kable(df, caption = "Table 2: Partial Data Summary of the Final Model")  
+```
+
+We find the odds ratio table for imporant measures of interests. We see that indeed our 5 variables of interests are significant.
+
+```{r}
+#cooks distance plot
+plot(di.lasso, ylim = c(0,0.01), main = "Cook's Distance", xlab = "Observation Number", ylab = "Cook's Distance")
+mtext("Figure 3: Model Diagnostics and Validation Plots for the Final Model", side = 3, line = -1, outer = TRUE)
+```
+Cook's distance for the final model show that there are no influential observations
+```{r}
+## Calibration plot by LASSO with lrm from rms package ##
+
+lrm.lasso <- lrm(Stroke ~ Diabetes_012 + HighBP + HighChol + BMI + Smoker + HeartDiseaseorAttack + Veggies + NoDocbcCost + GenHlth + MentHlth + PhysHlth + DiffWalk + Age + Income, data = health_data, x =TRUE, y = TRUE, model= T)
+cross.calib.lasso <- calibrate(lrm.lasso, method="crossvalidation", B=10) # model calibration B means k like how many parts we divided into
+plot(cross.calib.lasso, las=1, xlab = "Predicted Probability", main = "Calibration Plot")
+```
+calibration plot looks very similar to the other forward selection bic/aic plots.
+```{r}
+
+### Discrimination with ROC curve for LASSO
+p <- predict(lrm.lasso, type = "fitted")
+
+roc_logit <- roc(health_data$Stroke ~ p)
+## The True Positive Rate ##
+TPR <- roc_logit$sensitivities
+## The False Positive Rate ##
+FPR <- 1 - roc_logit$specificities
+
+plot(FPR, TPR, xlim = c(0,1), ylim = c(0,1), type = 'l', lty = 1, lwd = 2,col = 'red', main = "ROC curve")
+abline(a = 0, b = 1, lty = 2, col = 'blue')
+text(0.7,0.4,label = paste("AUC = ", round(auc(roc_logit),2)))
+
+```
+The ROC curve looks very good as the AUC is 0.83
+
+
+
+
+Discussion:
+
+Limitations:
+
+
+BIC/AIC -
+
+When running different stepwise elimination, backward stepwise and stepwise elimination based on AIC or BIC iterates too many times due to an extremely large number of observations and does not finish. So, only forward stepwise for AIC and BIC were chosen for stewise regression.
+
+
+Lasso -
+
+Due to a large number of observations and unbalanced proportion of response variable, the missclassification error plot shows almost a straight line. The algorithm has a difficult time finding the best lambda with 1 standard error. This penalizes the dataset too heavily. To compensate, minimum lambda has been chosen to be the best lambda and number of folds was increased to 25.
+
+
+The study has been done fully on the paper where we study the odds ratios of the final model and how the model is validated through model validation and model diagnostics.
